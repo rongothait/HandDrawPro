@@ -1,10 +1,7 @@
 import time
 import mediapipe as mp
-from mediapipe.tasks.python import vision
-from mediapipe.tasks.python import text
-from mediapipe.tasks.python import text
 import cv2 as cv
-from camera_handle import get_camera_frame, init_camera
+from camera_handle import get_camera_frame, init_camera 
 import threading
 import numpy as np
 
@@ -22,6 +19,7 @@ latest_img_bgr = None  # global variable to store the latest image
 img_lock = threading.Lock()
 trail_canvas = None  # Initialize trail_canvas
 prev_point = None
+drawing_enabled = False
 
 
 # create a hand landmarker instace with the live stram mode
@@ -43,18 +41,34 @@ def print_result(result, output_image: mp.Image, timestamp_ms: int):
                 index_finger_landmark = hand_landmarks[8]
                 cx, cy = int(index_finger_landmark.x * w), int(index_finger_landmark.y * h)
                 if 0 <= cx < w and 0 <= cy < h:
-                    if prev_point is not None:
-                        cv.line(trail_canvas, prev_point, (cx, cy), (0, 255, 0), 5)
-                    prev_point = (cx, cy)
-                    fingertip_found = True
+                    if drawing_enabled:
+                        if prev_point is not None:
+                            cv.line(trail_canvas, prev_point, (cx, cy), (21, 127, 31), 5)
+                        prev_point = (cx, cy)
+                        fingertip_found = True
+                    else:
+                        prev_point = (cx, cy)
+                        fingertip_found = True
                 break  # Only track one hand
     if not fingertip_found:
         prev_point = None  # Reset if hand not found
+    
+    # text for drawing enabled / disabled
+    color_of_text = (41, 115, 115) if drawing_enabled else (255, 133, 82)
+    cv.putText(img, "Drawing", (10, 30), cv.FONT_HERSHEY_SIMPLEX , 0.9, color_of_text, 2)
+
+    # text for right index finger detected or not
+    color_of_text = (41, 115, 115) if fingertip_found else (255, 133, 82)
+    cv.putText(img, "Right Index Finger", (w - 280, 30), cv.FONT_HERSHEY_SIMPLEX , 0.9, color_of_text, 2)
+
 
     overlay = cv.addWeighted(img, 0.8, trail_canvas, 1.0, 0)
     img_bgr = cv.cvtColor(overlay, cv.COLOR_RGB2BGR)
     with img_lock:
         latest_img_bgr = img_bgr
+
+
+
 
 options = HandLandmarkerOptions(
     base_options = BaseOptions(model_asset_path = 'Assets/hand_landmarker.task'),
@@ -73,7 +87,10 @@ with HandLandmarker.create_from_options(options) as landmaker:
         with img_lock:
             if latest_img_bgr is not None:
                 cv.imshow('Hand Landmarks', latest_img_bgr)
-        if cv.waitKey(1) & 0xff == ord('q'):
+        key =  cv.waitKey(1) & 0xff
+        if key == ord(' '):
+            drawing_enabled = not drawing_enabled
+        if key == ord('q'):
             break
 
     cap.release()
