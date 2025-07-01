@@ -6,6 +6,7 @@ from mediapipe.tasks.python import text
 import cv2 as cv
 from camera_handle import get_camera_frame, init_camera
 import threading
+import numpy as np
 
 
 BaseOptions = mp.tasks.BaseOptions
@@ -19,24 +20,39 @@ mp_hands = mp.solutions.hands
 
 latest_img_bgr = None  # global variable to store the latest image
 img_lock = threading.Lock()
+trail_canvas = None  # Initialize trail_canvas
+prev_point = None
+
 
 # create a hand landmarker instace with the live stram mode
 def print_result(result, output_image: mp.Image, timestamp_ms: int):
-    global latest_img_bgr
-    img = output_image.numpy_view().copy()  # Make a copy to avoid memory issues
+    global latest_img_bgr, trail_canvas, prev_point
+    img = output_image.numpy_view().copy()
     h, w, _ = img.shape
 
+    if trail_canvas is None:
+        trail_canvas = np.zeros_like(img)
+
     # check for right hand using handedness
+    fingertip_found = False
     if result.hand_landmarks and result.handedness:
         for idx, handedness in enumerate(result.handedness):
-            label = handedness[0].category_name # "Right" or "Left"
-            if label == "Left":  # This is right hand actually, computer's left
+            label = handedness[0].category_name
+            if label == "Left":  # This is your right hand
                 hand_landmarks = result.hand_landmarks[idx]
                 index_finger_landmark = hand_landmarks[8]
                 cx, cy = int(index_finger_landmark.x * w), int(index_finger_landmark.y * h)
                 if 0 <= cx < w and 0 <= cy < h:
-                    cv.circle(img, (cx, cy), 5, (0, 255, 0), -1)
-    img_bgr = cv.cvtColor(img, cv.COLOR_RGB2BGR)
+                    if prev_point is not None:
+                        cv.line(trail_canvas, prev_point, (cx, cy), (0, 255, 0), 5)
+                    prev_point = (cx, cy)
+                    fingertip_found = True
+                break  # Only track one hand
+    if not fingertip_found:
+        prev_point = None  # Reset if hand not found
+
+    overlay = cv.addWeighted(img, 0.8, trail_canvas, 1.0, 0)
+    img_bgr = cv.cvtColor(overlay, cv.COLOR_RGB2BGR)
     with img_lock:
         latest_img_bgr = img_bgr
 
