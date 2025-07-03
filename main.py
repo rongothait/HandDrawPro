@@ -20,11 +20,12 @@ img_lock = threading.Lock()
 trail_canvas = None  # Initialize trail_canvas
 prev_point = None
 drawing_enabled = False
+delete_drawing = False
 
 
 # create a hand landmarker instace with the live stram mode
 def print_result(result, output_image: mp.Image, timestamp_ms: int):
-    global latest_img_bgr, trail_canvas, prev_point
+    global latest_img_bgr, trail_canvas, prev_point, delete_drawing
     img = output_image.numpy_view().copy()
     h, w, _ = img.shape
 
@@ -43,7 +44,7 @@ def print_result(result, output_image: mp.Image, timestamp_ms: int):
                 if 0 <= cx < w and 0 <= cy < h:
                     if drawing_enabled:
                         if prev_point is not None:
-                            cv.line(trail_canvas, prev_point, (cx, cy), (21, 127, 31), 5)
+                            cv.line(trail_canvas, prev_point, (cx, cy), (255, 255, 255), 5)
                         prev_point = (cx, cy)
                         fingertip_found = True
                     else:
@@ -61,9 +62,14 @@ def print_result(result, output_image: mp.Image, timestamp_ms: int):
     color_of_text = (41, 115, 115) if fingertip_found else (255, 133, 82)
     cv.putText(img, "Right Index Finger", (w - 280, 30), cv.FONT_HERSHEY_SIMPLEX , 0.9, color_of_text, 2)
 
+    if delete_drawing:
+        img_bgr = cv.cvtColor(img, cv.COLOR_RGB2BGR)
+        delete_drawing = False
+        trail_canvas = None
+    else:
+        overlay = cv.addWeighted(img, 0.8, trail_canvas, 1.0, 0)
+        img_bgr = cv.cvtColor(overlay, cv.COLOR_RGB2BGR)
 
-    overlay = cv.addWeighted(img, 0.8, trail_canvas, 1.0, 0)
-    img_bgr = cv.cvtColor(overlay, cv.COLOR_RGB2BGR)
     with img_lock:
         latest_img_bgr = img_bgr
 
@@ -92,6 +98,10 @@ with HandLandmarker.create_from_options(options) as landmaker:
             drawing_enabled = not drawing_enabled
         if key == ord('q'):
             break
+        if key == ord('e'):
+            delete_drawing = True
+            pass
+            
 
     cap.release()
     cv.destroyAllWindows()
