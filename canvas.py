@@ -8,13 +8,6 @@ class Canvas:
         self.current_stroke = []  # points while drawing
         self.current_color = constants.DEFAULT_COLOR
 
-    """
-    init current_stroke array and set color
-    """
-    def start_new_stroke(self, color = None):
-        self.current_stroke = []
-        self.current_color = color if color else constants.DEFAULT_COLOR
-
     def add_point(self, point):
         self.current_stroke.append(point)
     
@@ -51,11 +44,12 @@ class Canvas:
     def delete_stroke(self, index):
         if 0 <= index < len(self.strokes):
             del self.strokes[index]
-    
-    def undo(self):
-        """ think about deleteing """
+
+
+    def undo_last_stroke(self):
         if self.strokes:
             self.strokes.pop()
+
     
     def _distance(self, p1, p2):
         dist_sqr = (p1[0] - p2[0])**2 + (p1[1] - p2[1])**2
